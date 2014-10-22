@@ -138,12 +138,12 @@ class androidLogger:
 
 
     def formatHeaderLine(self,line):
-        lineResult = line.strip(' \t\n\r')
+        lineResult = line.rstrip(' \t\n\r')
         lineResult += ' -> '
         return lineResult
     
     def formatLine(self,line):
-        lineResult = line.strip(' \t\n\r')
+        lineResult = line.rstrip(' \t\n\r')
         lineResult += '\r\n'
         return lineResult
 
@@ -215,6 +215,7 @@ if __name__ == "__main__":
             print("started...\n")
             os.system("pause")
             t.join(1)
+            androidLogger.stopLogging()
         elif mode == '4':
             print("starting logger to file")
             androidLogger.resetFile()
