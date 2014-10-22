@@ -3,6 +3,7 @@ import os
 import time
 import subprocess
 import threading
+import re
 from queue import Queue
 
 
@@ -21,6 +22,7 @@ class androidLogger:
         self.encoding = 'ISO-8859-1'
         self.sdkPath = 'C:/Program Files (x86)/Eclipse_android/sdk/platform-tools/adb.exe'
         self.resultFile = 'logs.txt'
+        self.endofline = '\r\r'
         
     def getLogs(self, command):
         self.myshell = subprocess.Popen([self.sdkPath, command],
@@ -65,9 +67,10 @@ class androidLogger:
         self.myshell.communicate()
 
 
-    def getPackageLogs_(self, mode, package):
+    def getPackageLogs_(self, mode, package, loggerLevel):
         print("[androidLogger]:getPackageLogs_ for package :"+str(package))
-        args = ['-v','long']
+        loggerLevel_ = ' *:'+loggerLevel
+        args = ['-v','long',loggerLevel_]
         #args = []
         self.myshell = subprocess.Popen([self.sdkPath, 'logcat', args],
                            stdin = subprocess.PIPE,
@@ -78,34 +81,71 @@ class androidLogger:
         printNextLine = 0
         for line in iter(self.myshell.stdout.readline, b''):
             lineResult = line.decode(self.encoding)
-##            if package not in lineResult: #TODO Iterate
-##               continue
-            if not any(packageElement in lineResult for packageElement in package ) and printNextLine > 1:
-                printNextLine = 0
-                continue
-            printNextLine+=1
-            if mode==1:
-                self.printToConsole(line)
+            isHeader = False
+            if printNextLine >= 1:
+                if re.search(self.endofline,lineResult,re.I):
+                    printNextLine = 0
             else :
-                self.addToFile(line.decode(self.encoding))
+                foundPackage = False
+                if any(re.search(packageElement,lineResult,re.I) for packageElement in package ):
+                    printNextLine = 1
+                    isHeader = True
+                else :
+                    printNextLine = 0
+                    continue
+            if mode==1:
+                self.printToConsole(line,isHeader)
+            else :
+                self.addToFile(line,isHeader)
         for line in iter(self.myshell.stderr.readline, b''):
             print(line)
         self.myshell.communicate()
+
+    def clearLogs(self):
+        args = ['-c']
+        self.myshell = subprocess.Popen([self.sdkPath, 'logcat', args],
+                           stdin = subprocess.PIPE,
+                           stdout = subprocess.PIPE,
+                           stderr=subprocess.PIPE,
+                           bufsize=-1,
+                           shell = True)
         
 
     def stopLogging(self):
         self.myshell.communicate()
         self.myshell.terminate()
 
-    def addToFile(self,result):
+    def addToFile(self,result,isHeader):
         #if not os.path.fileExists(self.resultFile):
             #os.makedirs('out')
+        line = result
+        line = line.decode(self.encoding)
+        if isHeader:
+            line = self.formatHeaderLine(line)
+        else:
+            line = self.formatLine(line)
         myFile = open(self.resultFile,encoding=self.encoding,mode='a')
-        myFile.write(result)
+        myFile.write(line)
 
-    def printToConsole(self,line):
-        line = str(bcolors.OKGREEN)+' '+str(line)+' '+str(bcolors.ENDC)
+    def printToConsole(self,line,isHeader):
+        #line = str(bcolors.OKGREEN)+' '+str(line)+' '+str(bcolors.ENDC)
+        line = line.decode(self.encoding)
+        if isHeader:
+            line = self.formatHeaderLine(line)
+        else:
+            line = self.formatLine(line)
         print(line)
+
+
+    def formatHeaderLine(self,line):
+        lineResult = line.strip(' \t\n\r')
+        lineResult += ' -> '
+        return lineResult
+    
+    def formatLine(self,line):
+        lineResult = line.strip(' \t\n\r')
+        lineResult += '\r\n'
+        return lineResult
 
     def resetFile(self):
         print("[resetFile]:")
@@ -134,16 +174,16 @@ if __name__ == "__main__":
     doContinue = True
     androidLogger = androidLogger()
 
-    myPackage = ["com.kayentis.eprotouch","com.kayentis.epro"]
-    #myPackage = ["com.kayentis.eprotouch"]
+   # myPackage = ["com.kayentis.eprotouch","com.kayentis.epro"]
+   # myPackage = ["com.kayentis.eprotouch"]
+    myPackage = ["com.kayentis.epro"]
     
     while doContinue:
         print('-----------------------')
         print('1 - Console mode')
         print('2 - (File mode)')
-        print('3 - (File mode) > DEBUG')
+        print('3 - Console mode > WARNING')
         print('4 - (File mode) > WARNING')
-        print('5 - (File mode) application Filtered ')
         print('6 - (File mode) custom Filtered  ')
         print('10 - exit')
         print('-----------------------')
@@ -159,26 +199,32 @@ if __name__ == "__main__":
             doContinue = False
         elif mode == '1':
             print("starting logger")
-            androidLogger.getPackageLogs_(1,myPackage)
+            androidLogger.clearLogs()
+            androidLogger.getPackageLogs_(1,myPackage,'D')
+        elif mode == '3':
+            print("starting logger")
+            androidLogger.clearLogs()
+            androidLogger.getPackageLogs_(1,myPackage,'W')
         elif mode == '2':
             print("starting logger to file")
             androidLogger.resetFile()
-            t = threading.Thread(target=androidLogger.getPackageLogs_,args=(2,myPackage))
+            androidLogger.clearLogs()
+            t = threading.Thread(target=androidLogger.getPackageLogs_,args=(2,myPackage,'D'))
             t.daemon = True
             t.start()
             print("started...\n")
-            #mode = input("Type anything to stop...")
-            #androidLogger.stopLogging()
             os.system("pause")
+            t.join(1)
         elif mode == '4':
             print("starting logger to file")
             androidLogger.resetFile()
-            t = threading.Thread(target=androidLogger.getLogs_,args=(2,' -v long *:W'))
+            androidLogger.clearLogs()
+            t = threading.Thread(target=androidLogger.getPackageLogs_,args=(2,myPackage,'W'))
             t.daemon = True
             t.start()
-            print("started...")
-            mode = input("Type anything to stop...")
-            androidLogger.stopLogging()
+            print("started...\n")
+            os.system("pause")
+            t.join(1)
         elif mode == '6':
             print('-------------------------------')
             print('----- Available filters -------')
