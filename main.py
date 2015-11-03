@@ -39,10 +39,6 @@ class androidLogger:
         print("[androidLogger]:Length:"+str(sys.getsizeof(result[0])))
         print("[androidLogger]#"+result[0].decode(self.encoding))
 
-        #self._doPrint()
-        #sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
-        #out = os.read(sys.stdout.fileno(), 10)
-        #print (out)
 
         
                         
@@ -53,10 +49,6 @@ class androidLogger:
                            stderr=subprocess.PIPE,
                            bufsize=-1,
                            shell = True)
-        #result = proc.communicate(timeout=5)
-        #print("[androidLogger]:Length:"+str(sys.getsizeof(result[0])))
-        #print("[androidLogger]#"+result[0].decode(self.encoding))
-        #print("[androidLogger]#"+result[1].decode(self.encoding))
         for line in iter(self.myshell.stdout.readline, b''):
             if mode==1:
                 print(line)
@@ -67,7 +59,7 @@ class androidLogger:
         self.myshell.communicate()
 
 
-    def getPackageLogs_(self, mode, package, loggerLevel):
+    def getPackageLogs_(self, mode, package, packageToRemove, loggerLevel):
         print("[androidLogger]:getPackageLogs_ for package :"+str(package))
         loggerLevel_ = ' *:'+loggerLevel
         args = ['-v','long',loggerLevel_]
@@ -87,7 +79,7 @@ class androidLogger:
                     printNextLine = 0
             else :
                 foundPackage = False
-                if any(re.search(packageElement,lineResult,re.I) for packageElement in package ):
+                if any(re.search(packageElement,lineResult,re.I) for packageElement in package ) and not any(re.search(packageElement,lineResult,re.I) for packageElement in packageToRemove):
                     printNextLine = 1
                     isHeader = True
                 else :
@@ -112,7 +104,6 @@ class androidLogger:
         
 
     def stopLogging(self):
-        self.myshell.communicate()
         self.myshell.terminate()
 
     def addToFile(self,result,isHeader):
@@ -174,9 +165,8 @@ if __name__ == "__main__":
     doContinue = True
     androidLogger = androidLogger()
 
-   # myPackage = ["com.kayentis.eprotouch","com.kayentis.epro"]
-   # myPackage = ["com.kayentis.eprotouch"]
-    myPackage = ["com.kayentis.epro"]
+    myPackage = ["package"]
+    packageToRemove = ["package i don't want to see"]
     
     while doContinue:
         print('-----------------------')
@@ -184,7 +174,6 @@ if __name__ == "__main__":
         print('2 - (File mode)')
         print('3 - Console mode > WARNING')
         print('4 - (File mode) > WARNING')
-        print('6 - (File mode) custom Filtered  ')
         print('10 - exit')
         print('-----------------------')
         mode = 0
@@ -194,67 +183,36 @@ if __name__ == "__main__":
             print("typed:"+str(mode))
         except ValueError:
             print("Not a number\n")
+            
         if mode == '10':
             print("exiting\n")
             doContinue = False
         elif mode == '1':
             print("starting logger")
             androidLogger.clearLogs()
-            androidLogger.getPackageLogs_(1,myPackage,'D')
+            androidLogger.getPackageLogs_(1,myPackage,packageToRemove,'D')
         elif mode == '3':
             print("starting logger")
             androidLogger.clearLogs()
-            androidLogger.getPackageLogs_(1,myPackage,'W')
+            androidLogger.getPackageLogs_(1,myPackage,packageToRemove,'W')
         elif mode == '2':
             print("starting logger to file")
             androidLogger.resetFile()
             androidLogger.clearLogs()
-            t = threading.Thread(target=androidLogger.getPackageLogs_,args=(2,myPackage,'D'))
+            t = threading.Thread(target=androidLogger.getPackageLogs_,args=(2,myPackage,packageToRemove,'D'))
             t.daemon = True
             t.start()
             print("started...\n")
             os.system("pause")
             t.join(1)
-            androidLogger.stopLogging()
         elif mode == '4':
             print("starting logger to file")
             androidLogger.resetFile()
             androidLogger.clearLogs()
-            t = threading.Thread(target=androidLogger.getPackageLogs_,args=(2,myPackage,'W'))
+            t = threading.Thread(target=androidLogger.getPackageLogs_,args=(2,myPackage,packageToRemove,'W'))
             t.daemon = True
             t.start()
             print("started...\n")
             os.system("pause")
             t.join(1)
-        elif mode == '6':
-            print('-------------------------------')
-            print('----- Available filters -------')
-            print('-------------------------------')
-            print('1 - [SyncDateManager]')
-            print('10 - exit')
-            print('-----------------------')
-            try:
-                choice = input("Choice:")
-                print("typed:"+str(mode))
-            except ValueError:
-                print("Not a number\n")
-
-            argSyncDateManager = ' com.kayentis.epro.sync.manager.SyncDateManager:D *:S'
-            filter = ''
-            if choice == '1':
-                filter = argSyncDateManager
-            
-            print("starting logger to file")
-            androidLogger.resetFile()
-            t = threading.Thread(target=androidLogger.getLogs_,args=(2,' -v long '+filter))
-            t.daemon = True
-            t.start()
-            print("started...")
-            try:
-                test = input("Type anything to stop...")
-            except ValueError:
-                print("Not a number\n")
-            finally:
-                androidLogger.stopLogging()
-            print("stopped...")
-                
+    
